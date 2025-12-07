@@ -1,0 +1,118 @@
+images:
+  airflow:
+    repository: apache/airflow
+    tag: 2.6.3
+    pullPolicy: IfNotPresent
+
+executor: KubernetesExecutor
+
+config:
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  AIRFLOW__CORE__DAG_CONCURRENCY: "16"
+  AIRFLOW__CORE__PARALLELISM: "32"
+  AIRFLOW__KUBERNETES__NAMESPACE: airflow-core
+  AIRFLOW__KUBERNETES__MULTI_NAMESPACE_MODE: "True"
+  AIRFLOW__KUBERNETES__NAMESPACE_LIST: "airflow-core,airflow-cron,airflow-user"
+  AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+
+webserver:
+  service:
+    type: LoadBalancer
+  defaultUser:
+    enabled: true
+    role: Admin
+    username: admin
+    password: admin
+    email: admin@example.com
+  livenessProbe:
+    initialDelaySeconds: 20
+
+scheduler:
+  replicas: 1
+  livenessProbe:
+    initialDelaySeconds: 20
+
+triggerer:
+  enabled: true
+  replicas: 1
+
+workers:
+  enabled: false
+
+createUserJob:
+  applyCustomEnv: true
+  securityContext:
+    runAsUser: 50000
+    fsGroup: 50000
+
+logs:
+  persistence:
+    enabled: false
+
+airflowDatabase:
+  type: mysql
+  mysql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: false
+    auth:
+      username: airflow
+      password: airflow
+      database: airflow
+
+redis:
+  enabled: false
+
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: true
+    # Point to the **external DAG repository** (not this platform repo).
+    repo: https://github.com/your-org/airflow-dags.git
+    branch: main
+    rev: HEAD
+    depth: 1
+    subPath: dags
+    wait: 30
+    # If the repo is private, set one of the following and create the secret:
+    # sshKeySecret: airflow-dags-ssh    # secret data key: ssh-privatekey
+    # credentialsSecret: airflow-dags-cred # secret data keys: GIT_SYNC_USERNAME, GIT_SYNC_PASSWORD
+
+resources:
+  limits:
+    cpu: 800m
+    memory: 1.5Gi
+  requests:
+    cpu: 400m
+    memory: 1Gi
+
+serviceAccount:
+  create: true
+  name: airflow-core
+
+# Allow scheduling on tainted single-node clusters (Kind control-plane) while
+# remaining compatible with multi-node prod. Adjust selectors to pin the core
+# stack to specific nodes/pools if desired.
+nodeSelector:
+  kubernetes.io/os: linux
+
+tolerations:
+  - key: "node-role.kubernetes.io/control-plane"
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 50
+        preference:
+          matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - airflow-control-plane
