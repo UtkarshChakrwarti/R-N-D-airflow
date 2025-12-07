@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: airflow-core
+  namespace: argocd
+spec:
+  destination:
+    namespace: airflow-core
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    repoURL: <YOUR_PLATFORM_REPO_URL>
+    targetRevision: main
+    path: platform/airflow/core
+    helm:
+      releaseName: airflow-core
+      dependencyUpdate: true
+      valueFiles:
+        - values.yaml
+      skipCrds: false
+      version: v3
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
