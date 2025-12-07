@@ -194,6 +194,17 @@ argocd app list --output wide
 - **Shared DAGs/config:** the core pods mount the git-synced DAG volume so the scheduler can launch tasks across namespaces while keeping a single source of truth.
 - **Security/Isolation:** worker pods in `airflow-cron` and `airflow-user` only need the permissions/secrets you grant there; the core secrets stay in `airflow-core`.
 
+### Component placement cheat sheet
+| Component                          | Namespace       | Steady-state pods | Containers per pod | How to verify |
+|------------------------------------|-----------------|-------------------|--------------------|---------------|
+| webserver                          | `airflow-core`  | 1                 | 2 (webserver + git-sync) | `kubectl get pod -n airflow-core -l component=webserver`
+| scheduler                          | `airflow-core`  | 1                 | 2 (scheduler + git-sync) | `kubectl get pod -n airflow-core -l component=scheduler`
+| triggerer                          | `airflow-core`  | 1                 | 2 (triggerer + git-sync) | `kubectl get pod -n airflow-core -l component=triggerer`
+| metadata DB (MySQL)                | `airflow-core`  | 1 StatefulSet pod | 1                  | `kubectl get sts -n airflow-core airflow-mysql`
+| worker pods (per task, transient)  | `airflow-cron` or `airflow-user` | 0 idle (spawn on demand) | 1 | `kubectl get pod -n airflow-cron` / `kubectl get pod -n airflow-user`
+
+Use the table during demos to confirm you are looking at the correct namespace and that pod/container counts align with expectations before and after triggering DAGs.
+
 ### Command-friendly diagram: who runs where
 ```
              [ External DAG Git Repo ]
